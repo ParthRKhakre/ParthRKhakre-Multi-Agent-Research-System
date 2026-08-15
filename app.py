@@ -1,11 +1,12 @@
 import streamlit as st
 import time
+from datetime import datetime
 from agents import build_reader_agent, build_search_agent, writer_chain, critic_chain
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ResearchMind · AI Research Agent",
-    page_icon="🔬",
+    page_title="ResearchMind · Field Research System",
+    page_icon="◆",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -13,300 +14,411 @@ st.set_page_config(
 # ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
-/* ── Reset & base ── */
+:root {
+    --paper:      #F5F1E7;
+    --paper-alt:  #EDE7D8;
+    --paper-line: rgba(26,25,20,0.10);
+    --ink:        #1C1A15;
+    --ink-soft:   #6B6455;
+    --navy:       #223755;
+    --navy-soft:  rgba(34,55,85,0.08);
+    --navy-line:  rgba(34,55,85,0.28);
+    --rust:       #B8441F;
+    --rust-soft:  rgba(184,68,31,0.10);
+    --sage:       #55694A;
+    --sage-soft:  rgba(85,105,74,0.10);
+}
+
 html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    color: #e8e4dc;
+    font-family: 'Inter', sans-serif;
+    color: var(--ink);
 }
 
 .stApp {
-    background: #0a0a0f;
+    background-color: var(--paper);
     background-image:
-        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(255,140,50,0.12) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(255,80,30,0.08) 0%, transparent 55%);
+        repeating-linear-gradient(180deg, rgba(34,55,85,0.035) 0px, rgba(34,55,85,0.035) 1px, transparent 1px, transparent 34px),
+        radial-gradient(ellipse 70% 40% at 15% 0%, rgba(184,68,31,0.05) 0%, transparent 60%);
 }
 
-/* ── Hide default streamlit chrome ── */
 #MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 2rem 3rem 4rem; max-width: 1200px; }
+.block-container { padding: 2.2rem 3rem 4rem; max-width: 1180px; }
 
-/* ── Hero header ── */
-.hero {
-    text-align: center;
-    padding: 3.5rem 0 2.5rem;
+/* ── Cover / hero ── */
+.cover {
     position: relative;
+    padding: 2.4rem 0 2rem;
+    border-bottom: 1px solid var(--paper-line);
+    margin-bottom: 2.4rem;
 }
-.hero-eyebrow {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    font-weight: 500;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: #ff8c32;
-    margin-bottom: 1rem;
-    opacity: 0.9;
-}
-.hero h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(2.8rem, 6vw, 5rem);
-    font-weight: 800;
-    line-height: 1.0;
-    letter-spacing: -0.03em;
-    color: #f0ebe0;
-    margin: 0 0 1rem;
-}
-.hero h1 span {
-    color: #ff8c32;
-}
-.hero-sub {
-    font-size: 1.05rem;
-    font-weight: 300;
-    color: #a09890;
-    max-width: 520px;
-    margin: 0 auto;
-    line-height: 1.65;
-}
-
-/* ── Divider ── */
-.divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255,140,50,0.3), transparent);
-    margin: 2rem 0;
-}
-
-/* ── Input card ── */
-.input-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,140,50,0.15);
-    border-radius: 16px;
-    padding: 2rem 2.5rem;
-    margin-bottom: 2rem;
-    backdrop-filter: blur(8px);
-}
-
-/* ── Streamlit input overrides ── */
-.stTextInput > div > div > input {
-    background: rgba(255,255,255,0.05) !important;
-    border: 1px solid rgba(255,140,50,0.25) !important;
-    border-radius: 10px !important;
-    color: #f0ebe0 !important;
-    font-family: 'DM Sans', sans-serif !important;
-    font-size: 1rem !important;
-    padding: 0.75rem 1rem !important;
-    transition: border-color 0.2s, box-shadow 0.2s !important;
-}
-.stTextInput > div > div > input:focus {
-    border-color: #ff8c32 !important;
-    box-shadow: 0 0 0 3px rgba(255,140,50,0.12) !important;
-}
-.stTextInput > label {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.72rem !important;
-    letter-spacing: 0.15em !important;
-    text-transform: uppercase !important;
-    color: #ff8c32 !important;
-    font-weight: 500 !important;
-}
-
-/* ── Button ── */
-.stButton > button {
-    background: linear-gradient(135deg, #ff8c32 0%, #ff5a1a 100%) !important;
-    color: #0a0a0f !important;
-    font-family: 'Syne', sans-serif !important;
-    font-weight: 700 !important;
-    font-size: 0.95rem !important;
-    letter-spacing: 0.04em !important;
-    border: none !important;
-    border-radius: 10px !important;
-    padding: 0.7rem 2.2rem !important;
-    cursor: pointer !important;
-    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s !important;
-    box-shadow: 0 4px 20px rgba(255,140,50,0.3) !important;
-    width: 100%;
-}
-.stButton > button:hover {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 28px rgba(255,140,50,0.4) !important;
-    opacity: 0.95 !important;
-}
-.stButton > button:active {
-    transform: translateY(0) !important;
-}
-
-/* ── Pipeline step cards ── */
-.step-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 14px;
-    padding: 1.5rem 1.8rem;
-    margin-bottom: 1.2rem;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.3s;
-}
-.step-card.active {
-    border-color: rgba(255,140,50,0.4);
-    background: rgba(255,140,50,0.04);
-}
-.step-card.done {
-    border-color: rgba(80,200,120,0.3);
-    background: rgba(80,200,120,0.03);
-}
-.step-card::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 3px;
-    border-radius: 14px 0 0 14px;
-    background: rgba(255,255,255,0.05);
-    transition: background 0.3s;
-}
-.step-card.active::before { background: #ff8c32; }
-.step-card.done::before   { background: #50c878; }
-
-.step-header {
+.cover-top {
     display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    margin-bottom: 0.3rem;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.6rem;
 }
-.step-num {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.68rem;
-    font-weight: 500;
-    letter-spacing: 0.15em;
-    color: #ff8c32;
-    opacity: 0.7;
-}
-.step-title {
-    font-family: 'Syne', sans-serif;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #f0ebe0;
-}
-.step-status {
-    margin-left: auto;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-}
-.status-waiting  { color: #555; }
-.status-running  { color: #ff8c32; }
-.status-done     { color: #50c878; }
-
-/* ── Result panels ── */
-.result-panel {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 14px;
-    padding: 1.8rem 2rem;
-    margin-top: 1rem;
-    margin-bottom: 1.5rem;
-}
-.result-panel-title {
-    font-family: 'DM Mono', monospace;
+.case-tag {
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 0.7rem;
     font-weight: 500;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: #ff8c32;
-    margin-bottom: 1rem;
-    padding-bottom: 0.7rem;
-    border-bottom: 1px solid rgba(255,140,50,0.15);
+    color: var(--navy);
+    border: 1px solid var(--navy-line);
+    padding: 0.35rem 0.7rem;
+    border-radius: 3px;
+    background: var(--navy-soft);
 }
-.result-content {
-    font-size: 0.92rem;
-    line-height: 1.8;
-    color: #cdc8bf;
-    white-space: pre-wrap;
-    font-family: 'DM Sans', sans-serif;
-}
-
-/* ── Report & feedback panels ── */
-.report-panel {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(255,140,50,0.2);
-    border-radius: 16px;
-    padding: 2rem 2.5rem;
-    margin-top: 1rem;
-}
-.feedback-panel {
-    background: rgba(255,255,255,0.025);
-    border: 1px solid rgba(80,200,120,0.2);
-    border-radius: 16px;
-    padding: 2rem 2.5rem;
-    margin-top: 1rem;
-}
-.panel-label {
-    font-family: 'DM Mono', monospace;
+.case-date {
+    font-family: 'IBM Plex Mono', monospace;
     font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    margin-bottom: 1.2rem;
-    padding-bottom: 0.7rem;
+    color: var(--ink-soft);
+    letter-spacing: 0.05em;
+    text-align: right;
+    line-height: 1.5;
 }
-.panel-label.orange {
-    color: #ff8c32;
-    border-bottom: 1px solid rgba(255,140,50,0.15);
+.cover h1 {
+    font-family: 'Fraunces', serif;
+    font-optical-sizing: auto;
+    font-size: clamp(2.6rem, 5.4vw, 4.3rem);
+    font-weight: 600;
+    line-height: 0.98;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin: 0 0 0.9rem;
 }
-.panel-label.green {
-    color: #50c878;
-    border-bottom: 1px solid rgba(80,200,120,0.15);
+.cover h1 em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--navy);
 }
-
-/* ── Progress text ── */
-.stSpinner > div { color: #ff8c32 !important; }
-
-/* ── Expander ── */
-details summary {
-    font-family: 'DM Mono', monospace !important;
-    font-size: 0.75rem !important;
-    color: #a09890 !important;
-    letter-spacing: 0.1em !important;
-    cursor: pointer;
+.cover-sub {
+    font-size: 1.02rem;
+    font-weight: 300;
+    color: var(--ink-soft);
+    max-width: 560px;
+    line-height: 1.7;
 }
 
 /* ── Section heading ── */
 .section-heading {
-    font-family: 'Syne', sans-serif;
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #f0ebe0;
-    margin: 2rem 0 1rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--navy);
+    margin: 0 0 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.section-heading::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--paper-line);
 }
 
-/* ── Toast-style notice ── */
-.notice {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.72rem;
-    color: #605850;
+/* ── Input card ── */
+.input-card {
+    background: rgba(255,255,255,0.35);
+    border: 1px solid var(--paper-line);
+    border-left: 3px solid var(--navy);
+    border-radius: 4px;
+    padding: 1.8rem 2rem 1.5rem;
+    margin-bottom: 1.2rem;
+}
+
+.stTextInput input,
+.stTextInput > div > div > input,
+[data-baseweb="input"] input,
+[data-baseweb="base-input"] input {
+    background: rgba(255,255,255,0.6) !important;
+    border: 1px solid var(--navy-line) !important;
+    border-radius: 3px !important;
+    color: var(--ink) !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    caret-color: var(--navy) !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 1rem !important;
+    padding: 0.7rem 1rem !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+.stTextInput input::placeholder {
+    color: #A39C8C !important;
+    opacity: 1 !important;
+    -webkit-text-fill-color: #A39C8C !important;
+}
+.stTextInput input:focus {
+    border-color: var(--navy) !important;
+    box-shadow: 0 0 0 3px var(--navy-soft) !important;
+}
+.stTextInput > label {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.16em !important;
+    text-transform: uppercase !important;
+    color: var(--ink-soft) !important;
+    font-weight: 500 !important;
+}
+[data-baseweb="base-input"] { background: transparent !important; }
+
+/* ── Button ── */
+.stButton > button {
+    background: var(--ink) !important;
+    color: var(--paper) !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-weight: 600 !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    border: none !important;
+    border-radius: 3px !important;
+    padding: 0.75rem 1.6rem !important;
+    cursor: pointer !important;
+    transition: background 0.15s, transform 0.1s !important;
+    width: 100%;
+}
+.stButton > button:hover {
+    background: var(--navy) !important;
+    transform: translateY(-1px) !important;
+}
+.stButton > button:active { transform: translateY(0) !important; }
+
+/* ── download button ── */
+.stDownloadButton > button {
+    background: transparent !important;
+    color: var(--navy) !important;
+    border: 1px solid var(--navy-line) !important;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.76rem !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    border-radius: 3px !important;
+    padding: 0.55rem 1.2rem !important;
+}
+.stDownloadButton > button:hover {
+    background: var(--navy-soft) !important;
+    border-color: var(--navy) !important;
+}
+
+/* ── Example chips ── */
+.chip-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 0.9rem 0 1.8rem; }
+.chip-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--ink-soft);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.chip {
+    background: rgba(255,255,255,0.4);
+    border: 1px solid var(--paper-line);
+    border-radius: 3px;
+    padding: 0.28rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    font-family: 'Inter', sans-serif;
+}
+
+/* ── Case log / pipeline entries ── */
+.entry {
+    position: relative;
+    background: rgba(255,255,255,0.3);
+    border: 1px solid var(--paper-line);
+    border-radius: 3px;
+    padding: 1.1rem 1.4rem 1.1rem 1.6rem;
+    margin-bottom: 0.9rem;
+    overflow: hidden;
+}
+.entry.active { border-color: var(--rust); background: var(--rust-soft); }
+.entry.done   { border-color: var(--sage); background: var(--sage-soft); }
+.entry::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--paper-line);
+}
+.entry.active::before {
+    background: var(--rust);
+    animation: scan 1.6s ease-in-out infinite;
+}
+.entry.done::before { background: var(--sage); }
+@keyframes scan {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+.entry-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+}
+.entry-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--ink-soft);
+}
+.entry-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+.entry-status {
+    margin-left: auto;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+.status-waiting { color: #A39C8C; }
+.status-running { color: var(--rust); }
+.status-done    { color: var(--sage); }
+.entry-desc {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    margin-top: 0.3rem;
+    padding-left: 1.35rem;
+    font-weight: 300;
+}
+
+/* ── Result / raw panels ── */
+.result-panel {
+    background: rgba(255,255,255,0.3);
+    border: 1px solid var(--paper-line);
+    border-radius: 4px;
+    padding: 1.5rem 1.8rem;
+    margin-top: 0.6rem;
+}
+.result-panel-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--paper-line);
+}
+.result-content {
+    font-size: 0.88rem;
+    line-height: 1.75;
+    color: var(--ink);
+    white-space: pre-wrap;
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+}
+
+/* ── Dossier report panel ── */
+.report-panel {
+    position: relative;
+    background: rgba(255,255,255,0.5);
+    border: 1px solid var(--paper-line);
+    border-radius: 4px;
+    padding: 2.2rem 2.6rem;
+    margin-top: 0.6rem;
+    box-shadow: 0 1px 0 var(--paper-line), 0 12px 30px -20px rgba(28,26,21,0.35);
+}
+.stamp {
+    position: absolute;
+    top: 1.6rem;
+    right: 2rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    color: var(--navy);
+    border: 1.5px solid var(--navy);
+    border-radius: 3px;
+    padding: 0.3rem 0.6rem;
+    transform: rotate(3deg);
+    opacity: 0.75;
+}
+.feedback-panel {
+    background: rgba(255,255,255,0.4);
+    border: 1px solid var(--paper-line);
+    border-left: 3px solid var(--sage);
+    border-radius: 4px;
+    padding: 2rem 2.4rem;
+    margin-top: 0.6rem;
+}
+.panel-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--paper-line);
+    color: var(--ink-soft);
+}
+.report-panel .stMarkdown, .report-panel p { font-family: 'Inter', sans-serif; }
+
+/* ── Expander ── */
+[data-testid="stExpander"] {
+    border: 1px solid var(--paper-line) !important;
+    border-radius: 4px !important;
+    background: rgba(255,255,255,0.2) !important;
+}
+details summary {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 0.74rem !important;
+    color: var(--ink-soft) !important;
+    letter-spacing: 0.08em !important;
+    cursor: pointer;
+}
+
+/* ── Spinner ── */
+.stSpinner > div { color: var(--rust) !important; }
+.stSpinner p { font-family: 'IBM Plex Mono', monospace !important; font-size: 0.8rem !important; }
+
+/* ── Divider ── */
+.hr {
+    height: 1px;
+    background: var(--paper-line);
+    margin: 2.4rem 0 2rem;
+}
+
+/* ── Footer ── */
+.footer {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: #A39C8C;
     text-align: center;
-    margin-top: 3rem;
-    letter-spacing: 0.08em;
+    margin-top: 3.5rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Helper: render a step card ────────────────────────────────────────────────
-def step_card(num: str, title: str, state: str, desc: str = ""):
+# ── Helper: render a case-log entry ───────────────────────────────────────────
+def entry_card(tag: str, title: str, state: str, desc: str = ""):
     status_map = {
-        "waiting": ("WAITING", "status-waiting"),
-        "running": ("● RUNNING", "status-running"),
-        "done":    ("✓ DONE",   "status-done"),
+        "waiting": ("PENDING", "status-waiting"),
+        "running": ("● IN PROGRESS", "status-running"),
+        "done":    ("✓ COMPLETE", "status-done"),
     }
     label, cls = status_map.get(state, ("", ""))
     card_cls = {"running": "active", "done": "done"}.get(state, "")
     st.markdown(f"""
-    <div class="step-card {card_cls}">
-        <div class="step-header">
-            <span class="step-num">{num}</span>
-            <span class="step-title">{title}</span>
-            <span class="step-status {cls}">{label}</span>
+    <div class="entry {card_cls}">
+        <div class="entry-row">
+            <span class="entry-tag">{tag}</span>
+            <span class="entry-title">{title}</span>
+            <span class="entry-status {cls}">{label}</span>
         </div>
-        {"<div style='font-size:0.82rem;color:#706860;margin-top:0.3rem;'>"+desc+"</div>" if desc else ""}
+        {"<div class='entry-desc'>"+desc+"</div>" if desc else ""}
     </div>
     """, unsafe_allow_html=True)
 
@@ -317,17 +429,20 @@ for key in ("results", "running", "done"):
         st.session_state[key] = {} if key == "results" else False
 
 
-# ── Hero ──────────────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="hero">
-    <div class="hero-eyebrow">Multi-Agent AI System</div>
-    <h1>Research<span>Mind</span></h1>
-    <p class="hero-sub">
-        Four specialized AI agents collaborate — searching, scraping, writing,
-        and critiquing — to deliver a polished research report on any topic.
+# ── Cover ─────────────────────────────────────────────────────────────────────
+today = datetime.now().strftime("%d.%m.%Y")
+st.markdown(f"""
+<div class="cover">
+    <div class="cover-top">
+        <span class="case-tag">Multi-Agent Research System</span>
+        <span class="case-date">FILE OPENED<br>{today}</span>
+    </div>
+    <h1>Research<em>Mind</em></h1>
+    <p class="cover-sub">
+        Four specialized agents work a single case in sequence — searching, reading,
+        drafting, and reviewing — to produce a sourced research report on any topic you assign.
     </p>
 </div>
-<div class="divider"></div>
 """, unsafe_allow_html=True)
 
 
@@ -335,6 +450,7 @@ st.markdown("""
 col_input, col_spacer, col_pipeline = st.columns([5, 0.5, 4])
 
 with col_input:
+    st.markdown('<div class="section-heading">Assign a Topic</div>', unsafe_allow_html=True)
     st.markdown('<div class="input-card">', unsafe_allow_html=True)
     topic = st.text_input(
         "Research Topic",
@@ -342,56 +458,37 @@ with col_input:
         key="topic_input",
         label_visibility="visible",
     )
-    run_btn = st.button("⚡  Run Research Pipeline", use_container_width=True)
+    run_btn = st.button("Open Case & Run Pipeline", use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Example chips
-    st.markdown("""
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem;">
-        <span style="font-family:'DM Mono',monospace;font-size:0.68rem;color:#605850;letter-spacing:0.1em;">TRY →</span>
-    """, unsafe_allow_html=True)
     examples = ["LLM agents 2025", "CRISPR gene editing", "Fusion energy progress"]
+    chips_html = '<div class="chip-row"><span class="chip-label">Try →</span>'
     for ex in examples:
-        st.markdown(f"""
-        <span style="
-            background:rgba(255,255,255,0.04);
-            border:1px solid rgba(255,255,255,0.08);
-            border-radius:6px;
-            padding:0.25rem 0.7rem;
-            font-size:0.75rem;
-            color:#a09890;
-            font-family:'DM Sans',sans-serif;
-            cursor:default;
-        ">{ex}</span>
-        """, unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        chips_html += f'<span class="chip">{ex}</span>'
+    chips_html += '</div>'
+    st.markdown(chips_html, unsafe_allow_html=True)
 
 with col_pipeline:
-    st.markdown('<div class="section-heading">Pipeline</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-heading">Case Log</div>', unsafe_allow_html=True)
 
     r = st.session_state.results
-    done = st.session_state.done
 
     def s(step):
         if not r:
             return "waiting"
         steps = ["search", "reader", "writer", "critic"]
-        idx = steps.index(step)
-        completed = list(r.keys())
-        # figure out which steps are done
         if step in r:
             return "done"
-        # which step is running now (first not in r)
         if st.session_state.running:
-            for i, k in enumerate(steps):
+            for k in steps:
                 if k not in r:
                     return "running" if k == step else "waiting"
         return "waiting"
 
-    step_card("01", "Search Agent",  s("search"), "Gathers recent web information")
-    step_card("02", "Reader Agent",  s("reader"), "Scrapes & extracts deep content")
-    step_card("03", "Writer Chain",  s("writer"), "Drafts the full research report")
-    step_card("04", "Critic Chain",  s("critic"), "Reviews & scores the report")
+    entry_card("ENTRY 01", "Search Agent", s("search"), "Gathers recent, reliable sources from the open web")
+    entry_card("ENTRY 02", "Reader Agent", s("reader"), "Scrapes and extracts deep content from the lead source")
+    entry_card("ENTRY 03", "Writer Chain", s("writer"), "Drafts the full structured research report")
+    entry_card("ENTRY 04", "Critic Chain", s("critic"), "Scores the report and flags weaknesses")
 
 
 # ── Run pipeline ──────────────────────────────────────────────────────────────
@@ -408,8 +505,8 @@ if st.session_state.running and not st.session_state.done:
     results = {}
     topic_val = st.session_state.topic_input
 
-# ── Step 1: Search ──
-    with st.spinner("🔍  Search Agent is working…"):
+    # ── Step 1: Search ──
+    with st.spinner("Search Agent is working…"):
         search_agent = build_search_agent()
         sr = search_agent.invoke({
             "messages": [("user", f"Find recent, reliable and detailed information about: {topic_val}")]
@@ -418,7 +515,7 @@ if st.session_state.running and not st.session_state.done:
         st.session_state.results = dict(results)
 
     # ── Step 2: Reader ──
-    with st.spinner("📄  Reader Agent is scraping top resources…"):
+    with st.spinner("Reader Agent is scraping top resources…"):
         reader_agent = build_reader_agent()
         rr = reader_agent.invoke({
             "messages": [("user",
@@ -431,7 +528,7 @@ if st.session_state.running and not st.session_state.done:
         st.session_state.results = dict(results)
 
     # ── Step 3: Writer ──
-    with st.spinner("✍️  Writer is drafting the report…"):
+    with st.spinner("Writer is drafting the report…"):
         research_combined = (
             f"SEARCH RESULTS:\n{results['search']}\n\n"
             f"DETAILED SCRAPED CONTENT:\n{results['reader']}"
@@ -443,7 +540,7 @@ if st.session_state.running and not st.session_state.done:
         st.session_state.results = dict(results)
 
     # ── Step 4: Critic ──
-    with st.spinner("🧐  Critic is reviewing the report…"):
+    with st.spinner("Critic is reviewing the report…"):
         results["critic"] = critic_chain.invoke({
             "report": results["writer"]
         })
@@ -458,42 +555,39 @@ if st.session_state.running and not st.session_state.done:
 r = st.session_state.results
 
 if r:
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-heading">Results</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hr"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-heading">Findings</div>', unsafe_allow_html=True)
 
-    # Raw outputs in expanders
     if "search" in r:
-        with st.expander("🔍 Search Results (raw)", expanded=False):
+        with st.expander("Search Results — raw", expanded=False):
             st.markdown(f'<div class="result-panel"><div class="result-panel-title">Search Agent Output</div>'
                         f'<div class="result-content">{r["search"]}</div></div>', unsafe_allow_html=True)
 
     if "reader" in r:
-        with st.expander("📄 Scraped Content (raw)", expanded=False):
+        with st.expander("Scraped Content — raw", expanded=False):
             st.markdown(f'<div class="result-panel"><div class="result-panel-title">Reader Agent Output</div>'
                         f'<div class="result-content">{r["reader"]}</div></div>', unsafe_allow_html=True)
 
-    # Final report
     if "writer" in r:
         st.markdown("""
         <div class="report-panel">
-            <div class="panel-label orange">📝 Final Research Report</div>
+            <span class="stamp">FILED</span>
+            <div class="panel-label">Final Research Report</div>
         """, unsafe_allow_html=True)
-        st.markdown(r["writer"])   # render markdown natively
+        st.markdown(r["writer"])
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Download
         st.download_button(
-            label="⬇  Download Report (.md)",
+            label="Download Report (.md)",
             data=r["writer"],
             file_name=f"research_report_{int(time.time())}.md",
             mime="text/markdown",
         )
 
-    # Critic feedback
     if "critic" in r:
         st.markdown("""
         <div class="feedback-panel">
-            <div class="panel-label green">🧐 Critic Feedback</div>
+            <div class="panel-label">Critic's Notes</div>
         """, unsafe_allow_html=True)
         st.markdown(r["critic"])
         st.markdown("</div>", unsafe_allow_html=True)
@@ -501,7 +595,5 @@ if r:
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("""
-<div class="notice">
-    ResearchMind · Powered by LangChain multi-agent pipeline · Built with Streamlit
-</div>
+<div class="footer">ResearchMind — LangChain Multi-Agent Pipeline — Built on Streamlit</div>
 """, unsafe_allow_html=True)
